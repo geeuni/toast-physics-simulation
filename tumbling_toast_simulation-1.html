@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tumbling Toast Simulation — Bacon, Heald & James (2001)</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --border: #2a2a2a;
+    --accent: #e8c84a;
+    --accent2: #e87a4a;
+    --text: #e8e4d8;
+    --muted: #666;
+    --butter: #f5d76e;
+    --toast: #c68642;
+    --toast-dark: #8B4513;
+    --table-col: #4a3728;
+    --sand: #d4b483;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 24px 40px;
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    background: var(--surface);
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  header span {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: calc(100vh - 65px);
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .section-label {
+    font-size: 0.6rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+  }
+
+  .param-group { display: flex; flex-direction: column; gap: 12px; }
+
+  .param-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .param-row label { font-size: 0.7rem; color: var(--muted); line-height: 1.4; }
+  .param-row label span { display: block; color: var(--text); font-size: 0.75rem; }
+
+  .param-val {
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-align: right;
+    min-width: 52px;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    margin-top: 2px;
+  }
+
+  .param-full { display: flex; flex-direction: column; gap: 4px; }
+
+  .btn {
+    padding: 10px 0;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    width: 100%;
+  }
+  .btn:hover { background: var(--accent); color: var(--bg); }
+  .btn.primary { background: var(--accent); color: var(--bg); }
+  .btn.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+  .btn.danger { border-color: var(--accent2); color: var(--accent2); }
+  .btn.danger:hover { background: var(--accent2); color: var(--bg); }
+
+  .result-box {
+    background: #111;
+    border: 1px solid var(--border);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+  }
+  .result-row .rkey { color: var(--muted); }
+  .result-row .rval { color: var(--text); }
+  .result-row .rval.good { color: #6ecf7f; }
+  .result-row .rval.bad  { color: var(--accent2); }
+
+  .verdict {
+    margin-top: 4px;
+    padding: 10px;
+    text-align: center;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    font-weight: 700;
+    border: 1px solid;
+  }
+  .verdict.down { border-color: var(--accent2); color: var(--accent2); background: rgba(232,122,74,0.08); }
+  .verdict.up   { border-color: #6ecf7f;         color: #6ecf7f;       background: rgba(110,207,127,0.08); }
+  .verdict.none { border-color: var(--border);   color: var(--muted);  background: transparent; }
+
+  /* ── MAIN PANEL ── */
+  .main {
+    display: grid;
+    grid-template-rows: 1fr 200px;
+    overflow: hidden;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(100,60,20,0.15) 0%, transparent 50%),
+      #0d0d0d;
+    overflow: hidden;
+  }
+
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .canvas-label {
+    position: absolute;
+    top: 14px; left: 18px;
+    font-size: 0.6rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .time-display {
+    position: absolute;
+    top: 14px; right: 18px;
+    font-size: 0.75rem;
+    color: var(--accent);
+  }
+
+  /* ── GRAPH PANEL ── */
+  .graph-panel {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+  }
+
+  .graph-slot {
+    position: relative;
+    border-right: 1px solid var(--border);
+    padding: 8px 12px 4px;
+  }
+  .graph-slot:last-child { border-right: none; }
+
+  .graph-title {
+    font-size: 0.58rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .graph-slot canvas { width: 100%; height: calc(100% - 22px); display: block; }
+
+  /* ── TOOLTIP / INFO ── */
+  .info-chip {
+    font-size: 0.62rem;
+    color: var(--muted);
+    line-height: 1.6;
+    padding: 8px;
+    background: #111;
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+  }
+  .info-chip b { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tumbling Toast Simulator</h1>
+  <span>Bacon, Heald &amp; James · Am. J. Phys. 69 (2001)</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── SIDEBAR ── -->
+  <div class="sidebar">
+
+    <div>
+      <div class="section-label">물리 파라미터</div>
+      <div class="param-group" style="margin-top:12px">
+
+        <div class="param-full">
+          <div class="param-row">
+            <label><span>Overhang d₀</span>초기 돌출 거리</label>
+            <div class="param-val" id="val_d0">1.10 cm</div>
+          </div>
+          <input type="range" id="sl_d0" min="0.05" max="5.0" step="0.05" value="1.10">
+        </div>
+
+        <div class="param-full">
+          <div class="param-row">
+            <label><span>정지마찰계수 μₛ</span>슬립 시작 조건</label>
+            <div class="param-val" id="val_ms">0.32</div>
+          </div>
+          <input type="range" id="sl_ms" min="0.10" max="0.80" step="0.01" value="0.32">
+        </div>
+
+        <div class="param-full">
+          <div class="param-row">
+            <label><span>운동마찰계수 μₖ</span>슬립 후 마찰</label>
+            <div class="param-val" id="val_mk">0.24</div>
+          </div>
+          <input type="range" id="sl_mk" min="0.05" max="0.60" step="0.01" value="0.24">
+        </div>
+
+        <div class="param-full">
+          <div class="param-row">
+            <label><span>테이블 높이 H</span>낙하 거리</label>
+            <div class="param-val" id="val_H">76 cm</div>
+          </div>
+          <input type="range" id="sl_H" min="40" max="120" step="1" value="76">
+        </div>
+
+        <div class="param-full">
+          <div class="param-row">
+            <label><span>토스트 반길이 a</span>10.2 cm 기준</label>
+            <div class="param-val" id="val_a">5.1 cm</div>
+          </div>
+          <input type="range" id="sl_a" min="2.0" max="8.0" step="0.1" value="5.1">
+        </div>
+
+        <div class="param-full">
+          <div class="param-row">
+            <label><span>두께 b</span>보드 두께</label>
+            <div class="param-val" id="val_b">1.3 cm</div>
+          </div>
+          <input type="range" id="sl_b" min="0.5" max="3.0" step="0.1" value="1.3">
+        </div>
+
+      </div>
+    </div>
+
+    <div class="info-chip">
+      <b>핵심 이론:</b> 슬립(slip)을 고려해야<br>
+      실험값과 일치함 (Fig.7 논문 참조).<br>
+      Ff/FN = μₛ 도달 시 슬립 시작 →<br>
+      이후 μₖ로 운동마찰 적용.
+    </div>
+
+    <div>
+      <div class="section-label">결과</div>
+      <div class="result-box" style="margin-top:12px" id="results">
+        <div class="result-row"><span class="rkey">슬립 시작 각도 αc</span><span class="rval" id="r_ac">—</span></div>
+        <div class="result-row"><span class="rkey">자유낙하 각속도 α̇</span><span class="rval" id="r_wd">—</span></div>
+        <div class="result-row"><span class="rkey">총 회전각 αT</span><span class="rval" id="r_at">—</span></div>
+        <div class="result-row"><span class="rkey">낙하 시간</span><span class="rval" id="r_tf">—</span></div>
+        <div id="verdict" class="verdict none">시뮬레이션 실행 전</div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn primary" id="btn_run">▶ 시뮬레이션 실행</button>
+      <button class="btn" id="btn_sweep">📊 Overhang Sweep (Fig.8)</button>
+      <button class="btn danger" id="btn_reset">↺ 초기화</button>
+    </div>
+
+  </div>
+
+  <!-- ── MAIN ── -->
+  <div class="main">
+    <div class="canvas-wrap">
+      <div class="canvas-label">Animation View</div>
+      <div class="time-display" id="time_disp">t = 0.000 s</div>
+      <canvas id="anim_canvas"></canvas>
+    </div>
+
+    <div class="graph-panel">
+      <div class="graph-slot">
+        <div class="graph-title">각속도 ω vs 시간 (rad/s)</div>
+        <canvas id="graph_w"></canvas>
+      </div>
+      <div class="graph-slot">
+        <div class="graph-title">총 회전각 αT vs Overhang (Fig.8 재현)</div>
+        <canvas id="graph_sweep"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  PHYSICS ENGINE — Bacon, Heald & James (2001)
+//  논문의 Eq.(10)~(15), 슬립 전후 분리 수치적분 구현
+// ═══════════════════════════════════════════════════════════════
+
+const G = 9.81; // m/s²
+
+function cm(x){ return x * 0.01; } // cm → m
+
+/**
+ * Phase 1: No-slip rotation about table edge
+ * Eq.(13): θ̈ = r₀·g·cos(θ−β₀) / ((a²+b²)/3 + d₀²)
+ * Slip starts when Ff/FN = μs  [Eq.(15) thin, generalized here]
+ */
+function simulatePhase1(d0, a, b, mu_s, dt = 1e-5) {
+  const r0 = Math.sqrt(b*b/4 + d0*d0);
+  const b0 = Math.atan2(b/2, d0);          // β₀
+  const I_factor = (a*a + b*b)/3 + d0*d0;  // denominator of Eq.(13)
+
+  let theta = b0;   // starts horizontal: θ = β₀ means α=0
+  let dtheta = 0;
+  const history = [];
+
+  for (let i = 0; i < 500000; i++) {
+    const ang = theta - b0;  // α = θ − β₀
+
+    // Angular acceleration Eq.(13)
+    const ddtheta = r0 * G * Math.cos(theta - b0) / I_factor;
+
+    // Normal force and friction (from Eq.10,11,12)
+    const sinb0 = b/(2*r0), cosb0 = d0/r0;
+    const FN_over_m = -G * Math.cos(ang) + r0 * dtheta * dtheta
+      + (b/2) * (r0 * G * Math.cos(ang) / I_factor);
+    // simplified slip condition using thin-board ratio (robust):
+    // Ff/FN = (1 + 9d0²/a²)·tan(α)  [Eq.15]
+    const ratio = (1 + 9*d0*d0/(a*a)) * Math.tan(ang > 0 ? ang : 0);
+
+    history.push({ theta, dtheta, t: i * dt, alpha: ang });
+
+    if (ratio >= mu_s && ang > 0.001) {
+      return { slipTheta: theta, slipOmega: dtheta, slipAlpha: ang, history, r0, b0 };
+    }
+
+    // RK2 step
+    const k1 = dtheta;
+    const k1v = ddtheta;
+    const thetaMid = theta + 0.5*dt*k1;
+    const ddthetaMid = r0 * G * Math.cos(thetaMid - b0) / I_factor;
+    theta  += dt * (dtheta + 0.5*dt*ddthetaMid);
+    dtheta += dt * ddthetaMid;
+
+    // Lost contact?
+    if (theta > Math.PI) break;
+  }
+  return { slipTheta: theta, slipOmega: dtheta, slipAlpha: theta-b0, history, r0, b0 };
+}
+
+/**
+ * Phase 2: Slip phase — board still on edge, r changes
+ * Uses full Eq.(4),(5),(7),(9) with kinetic friction μk
+ * Simplified: track r, θ, ṙ, θ̇ numerically
+ */
+function simulatePhase2(d0, a, b, mu_k, r0Init, b0, thetaInit, omegaInit, dt = 5e-6) {
+  let r    = r0Init;
+  let dr   = 0;
+  let th   = thetaInit;
+  let dth  = omegaInit;
+  let beta = b0;
+
+  const history = [];
+  let alpha_dot_ff = null, alpha_ff = null, r_ff = null, dr_ff = null;
+
+  for (let i = 0; i < 2000000; i++) {
+    const sinb = b/(2*r), cosb = Math.sqrt(1 - sinb*sinb);
+    const ang  = th - b0;
+
+    // Eq.(4) and (5): equations of motion with slip
+    // Normal force from radial eq (centripetal):
+    // FN·sinβ − μk·FN·cosβ + mg·sin(θ−β₀) = m(r̈ − rθ̇²)
+    // −FN·cosβ − μk·FN·sinβ + mg·cos(θ−β₀) = m(rθ̈ + 2ṙθ̇)
+    // angular: (FN·cosβ)·r + μk·FN·b/2 = m(a²/3+b²/12)·α̈
+
+    const sinAng = Math.sin(th - b0), cosAng = Math.cos(th - b0);
+    const I_cm = a*a/3 + b*b/12;
+
+    // Solve for FN (3 equations, unknowns: FN, r̈, θ̈)
+    // From angular eq: θ̈ = [(FN·cosβ)·r + μk·FN·b/2] / (m·I_cm) = FN·(r·cosb + mu_k·b/2)/I_cm
+    // From tangential: rθ̈ + 2ṙθ̇ = −FN(cosb+mu_k·sinb)/m + G·cosAng
+    // Substitute θ̈:
+    const A = (r * cosb + mu_k * b/2) / I_cm;  // θ̈ = FN·A/m
+    // tangential: r·FN·A/m + 2·ṙ·θ̇ = −FN(cosb+mu_k·sinb)/m + G·cosAng
+    // FN/m · [r·A + cosb + mu_k·sinb] = G·cosAng − 2·ṙ·θ̇
+    const denom_t = r*A + cosb + mu_k*sinb;
+    const FN_over_m = (G * cosAng - 2*dr*dth) / denom_t;
+    if (FN_over_m <= 0) {
+      // Lost contact
+      const dbeta = dr ? -dr*b/(2*r*r*cosb) : 0;
+      alpha_dot_ff = dth + dbeta;
+      alpha_ff = th - b0 + beta - b0;  // α = θ+β−2β₀... simplified
+      alpha_ff = th - b0;
+      r_ff = r; dr_ff = dr;
+      break;
+    }
+
+    const ddth = FN_over_m * A;
+    const ddr  = FN_over_m * (sinb - mu_k*cosb) - r*dth*dth + G*sinAng;
+
+    // β̈ from Eq.(9)
+    const ddbeta = dr*dr*sinb*(1+cosb*cosb)/(r*r*cosb*cosb*cosb) - ddr*sinb/(r*cosb);
+
+    history.push({ r, dr, th, dth, alpha_dot: dth + (dr ? -dr*b/(2*r*r*cosb): 0), t: i*dt });
+
+    // Euler step (small dt is fine)
+    r   += dt * dr;
+    dr  += dt * ddr;
+    th  += dt * dth;
+    dth += dt * ddth;
+
+    if (r < 0.001 || th > Math.PI*1.5) break;
+  }
+
+  if (!alpha_dot_ff) {
+    alpha_dot_ff = dth;
+    alpha_ff = th - b0;
+  }
+
+  return { omega_ff: alpha_dot_ff, alpha_ff, history, r_ff: r_ff||r, dr_ff: dr_ff||dr };
+}
+
+/**
+ * Phase 3: Free fall after leaving table
+ * Eq. y(t)_nearest_edge = y0 + ẏ0·t − 4.9t² − a|sin(α0 + α̇0·t)|
+ * Returns total rotation angle αT when board hits floor
+ */
+function freeFall(H, a, y0, ydot0, alpha0, omega_ff) {
+  const dt = 1e-5;
+  let t = 0;
+  for (let i = 0; i < 5000000; i++) {
+    const y = y0 + ydot0*t - 4.9*t*t - a*Math.abs(Math.sin(alpha0 + omega_ff*t));
+    if (y <= -H) {
+      const alphaT = alpha0 + omega_ff * t;
+      return { tf: t, alphaT };
+    }
+    t += dt;
+    if (t > 5) break;
+  }
+  return { tf: t, alphaT: alpha0 + omega_ff*t };
+}
+
+/**
+ * Master simulation: given params, return all results
+ */
+function runSimulation(params) {
+  const { d0_cm, a_cm, b_cm, mu_s, mu_k, H_cm } = params;
+  const d0 = cm(d0_cm), a = cm(a_cm), b = cm(b_cm), H = cm(H_cm);
+
+  const p1 = simulatePhase1(d0, a, b, mu_s);
+  const p2 = simulatePhase2(d0, a, b, mu_k, p1.r0, p1.b0, p1.slipTheta, p1.slipOmega);
+
+  // Compute y0, ẏ0 at release from edge
+  const th = p2.alpha_ff + p1.b0;
+  const y0 = -p1.r0 * Math.sin(th - p1.b0);
+  const ydot0 = -p2.dr_ff * Math.sin(th - p1.b0) - p1.r0 * Math.cos(th - p1.b0) * p2.omega_ff;
+
+  const p3 = freeFall(H, a, y0, ydot0, p2.alpha_ff, p2.omega_ff);
+
+  // Butter-side down if 90° < αT < 270°
+  const deg = (p3.alphaT * 180 / Math.PI) % 360;
+  const normDeg = ((deg % 360) + 360) % 360;
+  const butterDown = normDeg > 90 && normDeg < 270;
+
+  return {
+    slipAlpha_deg: p1.slipAlpha * 180/Math.PI,
+    omega_ff: p2.omega_ff,
+    alphaT_deg: normDeg,
+    alphaT_rad: p3.alphaT,
+    tf: p3.tf,
+    butterDown,
+    phase1: p1,
+    phase2: p2,
+    phase3: p3,
+    raw_alphaT_deg: p3.alphaT * 180/Math.PI
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UI & ANIMATION
+// ═══════════════════════════════════════════════════════════════
+
+const animCanvas  = document.getElementById('anim_canvas');
+const graphW      = document.getElementById('graph_w');
+const graphSweep  = document.getElementById('graph_sweep');
+const actx  = animCanvas.getContext('2d');
+const wctx  = graphW.getContext('2d');
+const sctx  = graphSweep.getContext('2d');
+
+let animRAF = null;
+let simResult = null;
+let omegaHistory = [];
+
+// Resize canvases
+function resizeAll() {
+  [animCanvas, graphW, graphSweep].forEach(c => {
+    c.width  = c.offsetWidth  * devicePixelRatio;
+    c.height = c.offsetHeight * devicePixelRatio;
+  });
+}
+window.addEventListener('resize', resizeAll);
+resizeAll();
+
+// ── PARAMETER SLIDERS ──
+const sliders = [
+  { id:'sl_d0', disp:'val_d0', unit:' cm', scale:1,   fmt: v=>(+v).toFixed(2)+' cm' },
+  { id:'sl_ms', disp:'val_ms', unit:'',    scale:1,   fmt: v=>(+v).toFixed(2) },
+  { id:'sl_mk', disp:'val_mk', unit:'',    scale:1,   fmt: v=>(+v).toFixed(2) },
+  { id:'sl_H',  disp:'val_H',  unit:' cm', scale:1,   fmt: v=>(+v).toFixed(0)+' cm' },
+  { id:'sl_a',  disp:'val_a',  unit:' cm', scale:1,   fmt: v=>(+v).toFixed(1)+' cm' },
+  { id:'sl_b',  disp:'val_b',  unit:' cm', scale:1,   fmt: v=>(+v).toFixed(1)+' cm' },
+];
+
+sliders.forEach(s => {
+  const el = document.getElementById(s.id);
+  const disp = document.getElementById(s.disp);
+  el.addEventListener('input', () => { disp.textContent = s.fmt(el.value); });
+});
+
+function getParams() {
+  return {
+    d0_cm: +document.getElementById('sl_d0').value,
+    mu_s:  +document.getElementById('sl_ms').value,
+    mu_k:  +document.getElementById('sl_mk').value,
+    H_cm:  +document.getElementById('sl_H').value,
+    a_cm:  +document.getElementById('sl_a').value,
+    b_cm:  +document.getElementById('sl_b').value,
+  };
+}
+
+// ── ANIMATION DRAW ──
+function drawFrame(alpha, phase, omega, params, progress, landed, butterDown) {
+  const W = animCanvas.width, H = animCanvas.height;
+  const dpr = devicePixelRatio;
+  actx.clearRect(0, 0, W, H);
+
+  // Background
+  actx.fillStyle = '#0d0d0d';
+  actx.fillRect(0,0,W,H);
+
+  const cx = W * 0.42, tableY = H * 0.48;
+  const scale = W * 0.012;  // pixels per cm at scale
+  const aP = params.a_cm * scale;
+  const bP = params.b_cm * scale * 0.5;
+  const d0P = params.d0_cm * scale;
+  const HP = params.H_cm * scale;
+
+  // Sand / floor
+  actx.fillStyle = '#2a1f0e';
+  actx.fillRect(0, tableY + HP, W, H);
+  actx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--sand').trim() || '#d4b483';
+  actx.fillRect(0, tableY + HP, W, 3*dpr);
+
+  // Table
+  actx.fillStyle = '#3a2a1a';
+  actx.fillRect(0, tableY, cx + 10*dpr, 12*dpr);
+  actx.fillStyle = '#4a3728';
+  actx.fillRect(0, tableY - 2*dpr, cx + 10*dpr, 6*dpr);
+
+  // Table edge marker
+  actx.strokeStyle = '#555';
+  actx.lineWidth = 1*dpr;
+  actx.setLineDash([4*dpr, 4*dpr]);
+  actx.beginPath(); actx.moveTo(cx, tableY-20*dpr); actx.lineTo(cx, tableY+HP+10*dpr); actx.stroke();
+  actx.setLineDash([]);
+
+  // Board position calculation
+  // Physics: CoM starts d0 to the RIGHT of edge, board rotates CLOCKWISE (positive alpha = tilting down-right)
+  // Edge pivot is at (cx, tableY). CoM is at angle alpha below horizontal, distance r0 from pivot.
+  // r0 = sqrt(d0² + (b/2)²), but for display use d0P as horizontal offset approximation.
+  let boardX, boardY, boardAngle;
+  if (phase === 'phase1' || phase === 'phase2') {
+    // CoM rotates clockwise about edge: starts at (cx + d0P, tableY), swings downward
+    boardAngle = alpha;  // angle below horizontal (clockwise positive)
+    boardX = cx + Math.cos(boardAngle) * d0P;
+    boardY = tableY + Math.sin(boardAngle) * d0P;
+  } else {
+    // Free fall — board drifts right and falls down
+    boardAngle = alpha;
+    boardX = cx + d0P + progress * aP * 0.5;
+    boardY = tableY + progress * HP * 0.95;
+  }
+
+  // Draw board (toast)
+  actx.save();
+  actx.translate(boardX, boardY);
+  actx.rotate(boardAngle);  // clockwise rotation
+
+  // Toast body
+  const tw = aP * 2, th2 = bP;
+  actx.fillStyle = '#c68642';
+  actx.fillRect(-tw/2, -th2/2, tw, th2);
+
+  // Crust
+  actx.strokeStyle = '#8B4513';
+  actx.lineWidth = 2*dpr;
+  actx.strokeRect(-tw/2, -th2/2, tw, th2);
+
+  // Butter side (top = butter side when alpha=0)
+  actx.fillStyle = 'rgba(245, 215, 110, 0.85)';
+  actx.fillRect(-tw/2 + 2*dpr, -th2/2, tw - 4*dpr, th2/2 - 1*dpr);
+
+  // Butter label
+  actx.fillStyle = '#8B6914';
+  actx.font = `${Math.max(7,scale*0.6)*dpr}px Space Mono`;
+  actx.textAlign = 'center';
+  actx.fillText('butter', 0, -th2/4 + 2*dpr);
+
+  actx.restore();
+
+  // Landing verdict overlay
+  if (landed) {
+    actx.fillStyle = butterDown ? 'rgba(232,122,74,0.15)' : 'rgba(110,207,127,0.12)';
+    actx.fillRect(0, 0, W, H);
+    actx.fillStyle = butterDown ? '#e87a4a' : '#6ecf7f';
+    actx.font = `${18*dpr}px Playfair Display, serif`;
+    actx.textAlign = 'center';
+    actx.fillText(butterDown ? '🍞 Butter-Side DOWN' : '🍞 Butter-Side UP', W/2, H*0.15);
+  }
+
+  // Phase label
+  actx.fillStyle = '#444';
+  actx.font = `${9*dpr}px Space Mono`;
+  actx.textAlign = 'left';
+  const phaseLabel = phase==='phase1'?'Phase 1: No-slip':phase==='phase2'?'Phase 2: Slip':'Phase 3: Free Fall';
+  actx.fillText(phaseLabel, 14*dpr, H - 14*dpr);
+}
+
+// ── RUN SIMULATION ANIMATION ──
+document.getElementById('btn_run').addEventListener('click', () => {
+  if (animRAF) cancelAnimationFrame(animRAF);
+  omegaHistory = [];
+
+  const params = getParams();
+  let res;
+  try {
+    res = runSimulation(params);
+  } catch(e) {
+    console.error(e);
+    return;
+  }
+  simResult = res;
+  updateResults(res);
+
+  // Animate: we play back phase1 → phase2 → phase3
+  const fps = 60;
+  const animDurMs = 3000;
+  let startTime = null;
+
+  function animate(ts) {
+    if (!startTime) startTime = ts;
+    const elapsed = ts - startTime;
+    const t = Math.min(elapsed / animDurMs, 1);
+
+    let phase, alpha, progress=0;
+    if (t < 0.35) {
+      phase = 'phase1';
+      const pt = t / 0.35;
+      alpha = res.phase1.slipAlpha * pt;
+      omegaHistory.push({ t: elapsed/1000, omega: res.phase1.slipOmega * pt });
+    } else if (t < 0.65) {
+      phase = 'phase2';
+      const pt = (t-0.35)/0.30;
+      alpha = res.phase1.slipAlpha + (res.phase2.alpha_ff - res.phase1.slipAlpha)*pt;
+      omegaHistory.push({ t: elapsed/1000, omega: res.phase1.slipOmega + (res.phase2.omega_ff - res.phase1.slipOmega)*pt });
+    } else {
+      phase = 'freefall';
+      const pt = (t-0.65)/0.35;
+      alpha = res.phase2.alpha_ff + res.phase2.omega_ff * pt * res.phase3.tf;
+      progress = pt;
+      omegaHistory.push({ t: elapsed/1000, omega: res.phase2.omega_ff });
+    }
+
+    const landed = t >= 0.99;
+    drawFrame(alpha, phase, res.phase2.omega_ff, params, progress, landed, res.butterDown);
+    drawOmegaGraph(omegaHistory, res);
+    document.getElementById('time_disp').textContent = `t = ${(elapsed/1000).toFixed(3)} s`;
+
+    if (t < 1.0) {
+      animRAF = requestAnimationFrame(animate);
+    }
+  }
+
+  animRAF = requestAnimationFrame(animate);
+});
+
+// ── RESULTS PANEL UPDATE ──
+function updateResults(res) {
+  document.getElementById('r_ac').textContent = res.slipAlpha_deg.toFixed(1) + '°';
+  document.getElementById('r_wd').textContent = res.omega_ff.toFixed(2) + ' rad/s';
+  document.getElementById('r_at').textContent = res.alphaT_deg.toFixed(1) + '°';
+  document.getElementById('r_tf').textContent = res.tf.toFixed(3) + ' s';
+
+  const v = document.getElementById('verdict');
+  if (res.butterDown) {
+    v.className = 'verdict down';
+    v.textContent = '🧈 BUTTER-SIDE DOWN';
+  } else {
+    v.className = 'verdict up';
+    v.textContent = '✓ BUTTER-SIDE UP';
+  }
+}
+
+// ── OMEGA GRAPH ──
+function drawOmegaGraph(history, res) {
+  const W = graphW.width, H = graphW.height;
+  const dpr = devicePixelRatio;
+  wctx.clearRect(0, 0, W, H);
+
+  const pad = 28*dpr;
+  wctx.strokeStyle = '#222';
+  wctx.lineWidth = 1;
+
+  if (!history.length) return;
+
+  const maxT = Math.max(...history.map(d=>d.t));
+  const maxO = Math.max(...history.map(d=>d.omega)) * 1.2;
+
+  // Grid
+  wctx.strokeStyle = '#1e1e1e';
+  for (let i=0;i<=4;i++) {
+    const y = pad + (H - 2*pad)*(1 - i/4);
+    wctx.beginPath(); wctx.moveTo(pad, y); wctx.lineTo(W-pad/2, y); wctx.stroke();
+    wctx.fillStyle='#444'; wctx.font=`${8*dpr}px Space Mono`;
+    wctx.textAlign='right';
+    wctx.fillText((maxO*i/4).toFixed(1), pad-3*dpr, y+3*dpr);
+  }
+
+  // Line
+  wctx.beginPath();
+  wctx.strokeStyle = '#e8c84a';
+  wctx.lineWidth = 1.5*dpr;
+  history.forEach((d, i) => {
+    const x = pad + (d.t/maxT)*(W-pad*1.5);
+    const y = pad + (H-2*pad)*(1 - d.omega/maxO);
+    i===0 ? wctx.moveTo(x,y) : wctx.lineTo(x,y);
+  });
+  wctx.stroke();
+
+  // Free-fall line reference
+  if (res) {
+    wctx.strokeStyle = '#e87a4a55';
+    wctx.lineWidth = 1*dpr;
+    wctx.setLineDash([4*dpr,4*dpr]);
+    const y = pad + (H-2*pad)*(1 - res.omega_ff/maxO);
+    wctx.beginPath(); wctx.moveTo(pad,y); wctx.lineTo(W-pad/2,y); wctx.stroke();
+    wctx.setLineDash([]);
+  }
+}
+
+// ── SWEEP GRAPH (Fig. 8 reproduction) ──
+document.getElementById('btn_sweep').addEventListener('click', async () => {
+  if (animRAF) cancelAnimationFrame(animRAF);
+  const params = getParams();
+
+  const overhangs = [];
+  const alphaTs = [];
+  const results_full = [];
+
+  // sample 60 overhang values from 0.05 to 5.0 cm
+  for (let d = 0.05; d <= 5.0; d += 0.08) {
+    const p = { ...params, d0_cm: d };
+    try {
+      const r = runSimulation(p);
+      overhangs.push(d);
+      alphaTs.push(r.raw_alphaT_deg);
+      results_full.push(r);
+    } catch(e) { /* skip */ }
+  }
+
+  drawSweepGraph(overhangs, alphaTs);
+  drawFrame(0, 'phase1', 0, params, 0, false, false);
+});
+
+function drawSweepGraph(overhangs, alphaTs) {
+  const W = graphSweep.width, H = graphSweep.height;
+  const dpr = devicePixelRatio;
+  sctx.clearRect(0, 0, W, H);
+
+  const pad = 30*dpr;
+  const maxD = Math.max(...overhangs);
+  const minA = 0, maxA = 720;
+
+  // BG zones: butter down (90–270, 450–630)
+  [[90,270],[450,630]].forEach(([lo,hi]) => {
+    const y1 = pad + (H-2*pad)*(1 - hi/maxA);
+    const y2 = pad + (H-2*pad)*(1 - lo/maxA);
+    sctx.fillStyle = 'rgba(232,122,74,0.07)';
+    sctx.fillRect(pad, y1, W-pad*1.5, y2-y1);
+  });
+
+  // Grid lines at 90, 180, 270, 360, 450, 540, 630, 720
+  [90,180,270,360,450,540,630,720].forEach(deg => {
+    const y = pad + (H-2*pad)*(1 - deg/maxA);
+    sctx.strokeStyle = deg===90||deg===270||deg===450||deg===630 ? '#333' : '#1e1e1e';
+    sctx.lineWidth = deg===90||deg===270?1.5*dpr:0.8*dpr;
+    sctx.beginPath(); sctx.moveTo(pad,y); sctx.lineTo(W-pad/2,y); sctx.stroke();
+    sctx.fillStyle='#444'; sctx.font=`${7*dpr}px Space Mono`; sctx.textAlign='right';
+    sctx.fillText(deg+'°', pad-3*dpr, y+3*dpr);
+  });
+
+  // Plot line
+  sctx.beginPath();
+  sctx.strokeStyle = '#e8c84a';
+  sctx.lineWidth = 1.5*dpr;
+  overhangs.forEach((d, i) => {
+    const x = pad + (d/maxD)*(W-pad*1.5);
+    const a = ((alphaTs[i]%360)+360)%360;
+    const aPlot = alphaTs[i]; // use raw for continuity
+    const y = pad + (H-2*pad)*(1 - Math.min(aPlot,maxA)/maxA);
+    i===0 ? sctx.moveTo(x,y) : sctx.lineTo(x,y);
+  });
+  sctx.stroke();
+
+  // Dots colored by outcome
+  overhangs.forEach((d, i) => {
+    const x = pad + (d/maxD)*(W-pad*1.5);
+    const aPlot = Math.min(alphaTs[i], maxA);
+    const y = pad + (H-2*pad)*(1 - aPlot/maxA);
+    const normD = ((alphaTs[i]%360)+360)%360;
+    const down = normD>90 && normD<270;
+    sctx.fillStyle = down ? '#e87a4a' : '#6ecf7f';
+    sctx.beginPath(); sctx.arc(x,y,2.5*dpr,0,Math.PI*2); sctx.fill();
+  });
+
+  // Labels
+  sctx.fillStyle='#555'; sctx.font=`${7.5*dpr}px Space Mono`;
+  sctx.textAlign='center';
+  sctx.fillText('← Butter DOWN', pad + (W-pad*2)*0.12, pad + (H-2*pad)*0.45);
+  sctx.fillText('Butter UP →',   pad + (W-pad*2)*0.5,  pad + (H-2*pad)*0.2);
+  sctx.fillText('← Butter DOWN', pad + (W-pad*2)*0.82, pad + (H-2*pad)*0.65);
+
+  // X axis
+  sctx.fillStyle='#444'; sctx.textAlign='center'; sctx.font=`${7*dpr}px Space Mono`;
+  [0,1,2,3,4,5].forEach(v => {
+    const x = pad + (v/maxD)*(W-pad*1.5);
+    sctx.fillText(v+' cm', x, H-4*dpr);
+  });
+}
+
+// ── RESET ──
+document.getElementById('btn_reset').addEventListener('click', () => {
+  if (animRAF) cancelAnimationFrame(animRAF);
+  actx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+  wctx.clearRect(0, 0, graphW.width, graphW.height);
+  sctx.clearRect(0, 0, graphSweep.width, graphSweep.height);
+  document.getElementById('r_ac').textContent = '—';
+  document.getElementById('r_wd').textContent = '—';
+  document.getElementById('r_at').textContent = '—';
+  document.getElementById('r_tf').textContent = '—';
+  document.getElementById('verdict').className = 'verdict none';
+  document.getElementById('verdict').textContent = '시뮬레이션 실행 전';
+  document.getElementById('time_disp').textContent = 't = 0.000 s';
+  omegaHistory = [];
+});
+
+// Initial state
+drawFrame(0, 'phase1', 0, getParams(), 0, false, false);
+</script>
+</body>
+</html>
